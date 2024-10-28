@@ -1,6 +1,7 @@
 """
 Polaris and Theta experiments
 """
+import datetime
 from CqSim.Cqsim_plus import Cqsim_plus
 from tqdm.auto import tqdm
 from utils import probabilistic_true, disable_print
@@ -18,15 +19,15 @@ def exp_theta(tqdm_pos, tqdm_lock):
 
     """
     tag = f'exp_theta_2023'
-    trace_dir = '../data/InputFiles/theta_polaris_2023'
-    trace_file = 'theta_2023.swf'
+    trace_dir = '../data/InputFiles'
+    trace_file = 'theta_polaris_2023.swf'
     cluster_proc = 4360
 
 
     cqp = Cqsim_plus(tag = tag)
     
 
-    job_ids, job_procs, job_submits = cqp.get_job_data(trace_dir, trace_file, parsed_trace=False)
+    job_ids, job_procs, job_submits, cluster_ids, gpu_req = cqp.get_job_data(trace_dir, trace_file, parsed_trace=False)
 
 
     sim = cqp.single_cqsim(
@@ -75,8 +76,8 @@ def exp_polaris(tqdm_pos, tqdm_lock):
     Simulates Polaris 2023 jobs on Polaris
     """
     tag = f'exp_polaris_2023'
-    trace_dir = '../data/InputFiles/theta_polaris_2023'
-    trace_file = 'polaris_2023.swf'
+    trace_dir = '../data/InputFiles'
+    trace_file = 'theta_polaris_2023.swf'
     cluster_proc = 552
 
 
@@ -124,7 +125,7 @@ def exp_polaris(tqdm_pos, tqdm_lock):
         "polaris" : cqp.get_job_results(sim)
     }
 
-def exp_polaris_theta_random(tqdm_pos, tqdm_lock):
+'''def exp_polaris_theta_random(tqdm_pos, tqdm_lock):
     """
     Theta and Polaris Metascheduled using random allocation
     """
@@ -229,21 +230,26 @@ def exp_polaris_theta_random(tqdm_pos, tqdm_lock):
         "theta" : cqp.get_job_results(sims[0]),
         "polaris" : cqp.get_job_results(sims[1])
     }
-
+'''
 
 def exp_polaris_theta_opt_turn(tqdm_pos, tqdm_lock):
     """
     Theta and Polaris Metascheduled using OPT turnaround
+    0 1693545511 6 22 10 -1 -1 10 3600 -1 0 1 0 -1 0 -1 -1 -1
     """
-    tag = f'polaris_theta_opt_turn'
-    trace_dir = '../data/InputFiles/theta_polaris_2023'
-    trace_file = 'polaris_theta_2023.swf'
+    now = datetime.datetime.now()
+    formatted_date_time = now.strftime("%m_%d_%H_%M")
+    master_exp_directory = f'../data/Results/exp_polaris_theta/'
+
+    trace_dir = '../data/InputFiles'
+    trace_file = 'theta_polaris_23_24.swf'
     theta_proc = 4360
     polaris_proc = 552
 
-
-    cqp = Cqsim_plus(tag = tag)
-    cqp.disable_child_stdout = True
+    tag = f'polaris_theta_opt_turn'
+    cqp = Cqsim_plus()
+    exp_out = f'{master_exp_directory}'
+    cqp.set_exp_directory(exp_out)
 
     # Cluster 1 is Theta
     theta = cqp.single_cqsim(
@@ -264,13 +270,12 @@ def exp_polaris_theta_opt_turn(tqdm_pos, tqdm_lock):
 
     sims = [theta, polaris]
 
-
     # Get job stats
     job_ids, job_procs, job_submits = cqp.get_job_data(trace_dir, trace_file, parsed_trace=False)
-    swf = read_job_data_swf(trace_dir, trace_file)
-    job_gpus = swf['is_gpu'].to_list()
-
-
+    cluster_ids, gpu_req = cqp.get_miscellaneous_data(trace_dir, trace_file, parsed_trace=False)
+    #swf = read_job_data_swf(trace_dir, trace_file)
+    #job_gpus = swf['is_gpu'].to_list()
+    print(trace_dir)
     # Configure sims to read all jobs
     for sim in sims:
         cqp.set_max_lines(sim, len(job_ids))
@@ -287,7 +292,7 @@ def exp_polaris_theta_opt_turn(tqdm_pos, tqdm_lock):
 
     for i in range(len(job_ids)):
 
-        if job_gpus[i] == 1:
+        if gpu_req[i] == 1:
             selected_sim = polaris
         else:
             turnarounds = {}
@@ -312,6 +317,17 @@ def exp_polaris_theta_opt_turn(tqdm_pos, tqdm_lock):
             #     # Get the turnaround of the latest job.
             #     last_job_turnaround = last_job_results['end'] - last_job_results['submit']
             #     turnarounds[sim] = last_job_turnaround.item()
+
+            if cluster_ids[i] == 1 and sim == theta:
+                cqp.set_job_run_scale_factor(sim, 1.0*4.0)
+                cqp.set_job_walltime_scale_factor(sim, 1.0*4.0)
+
+            elif cluster_ids[i] == 0 and sim == polaris:
+                cqp.set_job_run_scale_factor(sim, 1.0/4.0)
+                cqp.set_job_walltime_scale_factor(sim, 1.0/4.0)
+            else:
+                cqp.set_job_run_scale_factor(sim, 1.0)
+                cqp.set_job_walltime_scale_factor(sim, 1.0)
 
             turnarounds = cqp.predict_next_job_turnarounds(sims, job_ids[i], job_procs[i])
 
@@ -377,12 +393,14 @@ if __name__ == '__main__':
     for proc in p:
         proc.join()
 
+    #exp_polaris_theta_opt_turn(1, lock)
+
     import sys
     selector = int(sys.argv[1])
 
 
     if selector == 0:
-        # Just theta
+#        # Just theta
         p.append(multiprocessing.Process(target=exp_theta, args=(1, lock,)))
 
     if selector == 1:
@@ -393,9 +411,9 @@ if __name__ == '__main__':
         # Theta Polaris opt turn
         p.append(multiprocessing.Process(target=exp_polaris_theta_opt_turn, args=(1, lock,)))
 
-    if selector == 3:
+    #if selector == 3:
         # Theta Polaris random
-        p.append(multiprocessing.Process(target=exp_polaris_theta_random, args=(1, lock,)))
+    #    p.append(multiprocessing.Process(target=exp_polaris_theta_random, args=(1, lock,)))
 
 
     for proc in p:
@@ -404,7 +422,3 @@ if __name__ == '__main__':
 
     for proc in p:
         proc.join()
-
-
-
-

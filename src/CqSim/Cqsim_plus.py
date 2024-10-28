@@ -28,6 +28,7 @@ import Extend.SWF.Node_struc_SWF as node_struc_ext
 __metaclass__ = type
 import pandas as pd
 from CqSim.utils import swf_columns
+from trace_utils import read_swf
 
 class Cqsim_plus:
     """
@@ -124,7 +125,65 @@ class Cqsim_plus:
 
 
 
-        module_debug = Class_Debug_log.Debug_log(
+        '''module_debug = Class_Debug_log.Debug_log(
+            lvl=0,
+            show=0,
+            path= f'/dev/null',
+            log_freq=1
+        )
+        module_debug.disable()
+        save_name_j = f'/dev/null'
+        config_name_j = f'/dev/null'
+        module_filter_job = filter_job_ext.Filter_job_SWF(
+            trace=f'{trace_dir}/{trace_file}', 
+            save=save_name_j, 
+            config=config_name_j, 
+            debug=module_debug
+        )
+        count = module_filter_job.feed_job_trace()
+        print(count)
+        module_filter_job.output_job_config()'''
+
+        swf_df = read_swf(trace_dir, trace_file)
+
+        job_ids = swf_df['id'].tolist()
+        job_procs = swf_df['req_proc'].tolist()
+        job_submits = swf_df['submit'].tolist()
+
+        return job_ids, job_procs, job_submits
+
+        #job_ids = module_filter_job.job_ids
+        #job_procs = module_filter_job.job_procs
+        #job_submits = module_filter_job.job_submits
+
+        #return job_ids, job_procs, job_submits
+    
+    def get_miscellaneous_data(self, trace_dir, trace_file, parsed_trace = False):
+        """
+        Get the miscellaneous job data from some trace.
+
+        Parameters
+        ----------
+        trace_dir : str
+            A path to the directory where the trace file is located.
+        trace_file : str
+            The trace file name to read.
+
+        Returns
+        -------
+        job_ids : lits[int]
+            List of job ids.
+        job_procs : list[int]
+            List of processes requested for each job.
+        """
+        if parsed_trace:
+            df = pd.read_csv(f'{trace_dir}/{trace_file}', sep=';', header=None) 
+            df.columns = swf_columns
+            return df['id'].to_list(), df['req_proc'].to_list(), df['submit'].to_list()
+
+
+
+        '''module_debug = Class_Debug_log.Debug_log(
             lvl=0,
             show=0,
             path= f'/dev/null',
@@ -140,13 +199,14 @@ class Cqsim_plus:
             debug=module_debug
         )
         module_filter_job.feed_job_trace()
-        module_filter_job.output_job_config()
+        module_filter_job.output_job_config()'''
 
-        job_ids = module_filter_job.job_ids
-        job_procs = module_filter_job.job_procs
-        job_submits = module_filter_job.job_submits
+        swf_df = read_swf(trace_dir, trace_file)
 
-        return job_ids, job_procs, job_submits
+        cluster_ids = swf_df['cluster_id'].tolist()
+        gpu_req = swf_df['is_gpu'].tolist()
+
+        return cluster_ids, gpu_req
 
 
     def single_cqsim(self, trace_dir, trace_file, proc_count, parsed_trace = False, sim_tag = 'sim'):
@@ -263,7 +323,7 @@ class Cqsim_plus:
 
         # Backfill module
         module_backfill = Class_Backfill.Backfill(
-            mode=2,
+            mode=1,
             node_module=module_node_struc,
             debug=module_debug,
             para_list=None
@@ -375,7 +435,13 @@ class Cqsim_plus:
 
         results = json.loads(json_str)
 
+        # Convert to the right data type
+        # results return from json.loads hasa the keys as strings
+        # the keys are the cluster ids which should be ints
+        results = {int(k):float(v) for k,v in results.items()}
+
         return results
+        
     
     def _predict_next_job_turnarounds(self, ids, job_id, job_proc, conn):
 

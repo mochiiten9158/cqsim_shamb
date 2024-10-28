@@ -15,6 +15,8 @@ class Filter_job_SWF(filter_job.Filter_job):
         self.job_procs = []
         self.job_data = []
         self.job_submits = []
+        self.cluster_ids = []
+        self.gpu_req = []
         self.swf_columns = [
             'id',           #1 
             'submit',       #2
@@ -240,7 +242,7 @@ class Filter_job_SWF(filter_job.Filter_job):
         sep_sign = ";"
         f2=open(self.save,"w")
 
-        nr_sign =';'    # Not read sign. Mark the line not the job data
+        nr_sign =''    # Not read sign. Mark the line not the job data
         sept_sign =' '   # The sign seperate data in a line
         
         jobFile = open(self.trace,'r')
@@ -248,6 +250,7 @@ class Filter_job_SWF(filter_job.Filter_job):
         temp_readNum=0
         temp_start=0
         #job_num = 0
+        count = 0
         while (temp_readNum<self.rnum or self.rnum<=0):
             #print temp_readNum,")(",temp_start
             tempStr = jobFile.readline()
@@ -398,8 +401,11 @@ class Filter_job_SWF(filter_job.Filter_job):
                         self.job_ids.append(tempInfo['id'])
                         self.job_procs.append(tempInfo['usedProc'])
                         self.job_submits.append(tempInfo['submit'])
+                        self.cluster_ids.append(tempInfo['userID'])
+                        self.gpu_req.append(tempInfo['num_queue'])
                         #self.jobList.append(tempInfo)
                         temp_readNum+=1
+                        count += 1
                         #job_num += 1
                 temp_start += 1
             else:
@@ -415,6 +421,7 @@ class Filter_job_SWF(filter_job.Filter_job):
         jobFile.close()
         f2.close()
         self.jobNum = temp_readNum
+        return count
         #self.jobNum = len(self.jobList)
     
     def read_job_trace(self):
