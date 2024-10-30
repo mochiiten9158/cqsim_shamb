@@ -318,18 +318,21 @@ def exp_polaris_theta_opt_turn(tqdm_pos, tqdm_lock):
             #     last_job_turnaround = last_job_results['end'] - last_job_results['submit']
             #     turnarounds[sim] = last_job_turnaround.item()
 
-            if cluster_ids[i] == 1 and sim == theta:
-                cqp.set_job_run_scale_factor(sim, 1.0*4.0)
-                cqp.set_job_walltime_scale_factor(sim, 1.0*4.0)
+            if cluster_ids[i] == 1:
+                cqp.set_job_run_scale_factor(sims[0], 1.0*4.0)
+                cqp.set_job_walltime_scale_factor(sims[0], 1.0*4.0)
 
-            elif cluster_ids[i] == 0 and sim == polaris:
-                cqp.set_job_run_scale_factor(sim, 1.0/4.0)
-                cqp.set_job_walltime_scale_factor(sim, 1.0/4.0)
-            else:
-                cqp.set_job_run_scale_factor(sim, 1.0)
-                cqp.set_job_walltime_scale_factor(sim, 1.0)
+            elif cluster_ids[i] == 0:
+                cqp.set_job_run_scale_factor(sims[1], 1.0/4.0)
+                cqp.set_job_walltime_scale_factor(sims[1], 1.0/4.0)
 
             turnarounds = cqp.predict_next_job_turnarounds(sims, job_ids[i], job_procs[i])
+
+            #Reset
+            cqp.set_job_run_scale_factor(sims[0], 1.0)
+            cqp.set_job_walltime_scale_factor(sims[0], 1.0)
+            cqp.set_job_run_scale_factor(sims[1], 1.0)
+            cqp.set_job_walltime_scale_factor(sims[1], 1.0)
 
             # If none of the clusters could run, skip the job.
             assert(len(turnarounds) != 0)
@@ -350,12 +353,23 @@ def exp_polaris_theta_opt_turn(tqdm_pos, tqdm_lock):
         # Add the job to the appropriate cluster and continue main simulation.
         for sim in sims:
             if sim == selected_sim:
-                cqp.enable_next_job(sim)            
+                    if sim == sims[0] and cluster_ids[i] == 1:
+                        cqp.set_job_run_scale_factor(sim, 1.0*4.0)
+                        cqp.set_job_walltime_scale_factor(sim, 1.0*4.0)    
+                    elif sim == sims[1] and cluster_ids[i] == 0:
+                        cqp.set_job_run_scale_factor(sim, 1.0/4.0)
+                        cqp.set_job_walltime_scale_factor(sim, 1.0/4.0)
+                    cqp.enable_next_job(sim)         
             else:
                 cqp.disable_next_job(sim)
             with disable_print():
                 cqp.line_step(sim, write_results=True)
         
+        cqp.set_job_run_scale_factor(sims[0], 1.0)
+        cqp.set_job_walltime_scale_factor(sims[0], 1.0)
+        cqp.set_job_run_scale_factor(sims[1], 1.0)
+        cqp.set_job_walltime_scale_factor(sims[1], 1.0)
+
         with tqdm_lock:
             bar.update(1)
 
